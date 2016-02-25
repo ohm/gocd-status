@@ -9,7 +9,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"sync"
 	"time"
 )
 
@@ -60,63 +59,88 @@ func (h *httpFetcher) fetch(key string) ([]byte, error) {
 	return val, nil
 }
 
-type cacheItem struct {
-	v []byte
-	t time.Time
+type cacheResponse struct {
+	err error
+	val []byte
 }
 
-// cacheFetcher implements a simple in-memory read through caching strategy on
-// top of another fetcher.
+type cacheRequest struct {
+	c   chan cacheResponse
+	key string
+}
+
 type cacheFetcher struct {
-	sync.RWMutex
-
 	fetcher fetcher
-	items   map[string]*cacheItem
 	maxAge  time.Duration
+	maxWait time.Duration
+	reqs    chan cacheRequest
 }
 
-func newCacheFetcher(fetcher fetcher, maxAge time.Duration) (*cacheFetcher, error) {
-	f := &cacheFetcher{
-		fetcher: fetcher,
-		items:   map[string]*cacheItem{},
-		maxAge:  maxAge,
+func newCacheFetcher(f fetcher, d, w time.Duration) (*cacheFetcher, error) {
+	c := &cacheFetcher{
+		reqs:    make(chan cacheRequest),
+		fetcher: f,
+		maxAge:  d,
+		maxWait: w,
 	}
 
-	return f, nil
+	// Spawning multiple of these would be a simple means of achieving higher
+	// (i.e. any) concurrency wrt. the wrapped fetcher. The cache data structure
+	// should be shared in that case.
+	go c.processRequests()
+
+	return c, nil
 }
 
-func (f *cacheFetcher) fetch(key string) ([]byte, error) {
-	if item := f.get(key); item != nil {
-		if time.Since(item.t) <= f.maxAge {
-			return item.v, nil
+func (f *cacheFetcher) fetch(k string) ([]byte, error) {
+	req := cacheRequest{c: make(chan cacheResponse, 1), key: k}
+
+	f.reqs <- req
+
+	select {
+	case res := <-req.c:
+		return res.val, res.err
+	case <-time.After(f.maxWait):
+		return nil, fmt.Errorf("Waited more than %v for %s", f.maxWait, k)
+	}
+}
+
+func (f *cacheFetcher) processRequests() {
+	type item struct {
+		t   time.Time
+		val []byte
+	}
+
+	// As it is, this map used as in-memory cache will only consume more memory
+	// over time. Given the small, mostly static nature of the cached dataset
+	// (bounded by number of pipeline_groups * number of pipelines) that should
+	// be ok.
+	cache := map[string]item{}
+
+	for req := range f.reqs {
+		if i, ok := cache[req.key]; ok {
+			if time.Since(i.t) <= f.maxAge {
+				req.c <- cacheResponse{err: nil, val: i.val}
+				close(req.c)
+				continue
+			} else {
+				// Remove the expired item from the cache.
+				delete(cache, req.key)
+			}
 		}
+
+		// Fetch the item via the wrapped fetcher.
+		v, err := f.fetcher.fetch(req.key)
+		if err != nil {
+			req.c <- cacheResponse{err: err, val: nil}
+			close(req.c)
+			continue
+		}
+
+		// Cache the fetched item.
+		cache[req.key] = item{t: time.Now(), val: v}
+
+		req.c <- cacheResponse{err: nil, val: v}
+		close(req.c)
 	}
-
-	// As it is, concurrent requests to the cacheFetcher will incur concurrent
-	// requests to the fetcher it delegates to.
-	val, err := f.fetcher.fetch(key)
-	if err != nil {
-		return nil, err
-	}
-
-	f.set(key, val)
-	return val, nil
-}
-
-func (f *cacheFetcher) set(key string, val []byte) {
-	f.Lock()
-	defer f.Unlock()
-
-	f.items[key] = &cacheItem{v: val, t: time.Now()}
-}
-
-func (f *cacheFetcher) get(key string) *cacheItem {
-	f.RLock()
-	defer f.RUnlock()
-
-	if item, ok := f.items[key]; ok {
-		return item
-	}
-
-	return nil
 }

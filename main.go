@@ -14,9 +14,10 @@ import (
 
 func main() {
 	var (
-		listen = flag.String("listen", ":8080", "HTTP listen address")
-		maxAge = flag.Duration("max-age", 15*time.Second, "How long to cache GoCD API responses")
-		url    = flag.String("url", "https://user:pass@ci.example.com/", "Address of the GoCD API")
+		listen  = flag.String("listen", ":8080", "HTTP listen address")
+		maxAge  = flag.Duration("max-age", 15*time.Second, "How long to cache GoCD API responses")
+		maxWait = flag.Duration("max-wait", 1*time.Second, "How long to wait for GoCD API responses")
+		url     = flag.String("url", "https://user:pass@ci.example.com/", "Address of the GoCD API")
 	)
 	flag.Parse()
 
@@ -25,7 +26,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	cf, err := newCacheFetcher(hf, *maxAge)
+	cf, err := newCacheFetcher(hf, *maxAge, *maxWait)
 	if err != nil {
 		log.Fatal(err)
 	}
