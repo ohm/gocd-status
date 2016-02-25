@@ -1,7 +1,7 @@
 build: test
 	go build
 
-generate: clean
+generate: clean $(wildcard _assets/*)
 	go generate
 
 test: generate lint vet

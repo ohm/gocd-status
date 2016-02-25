@@ -36,15 +36,42 @@ function updatePipelineGroups(done) {
 };
 
 function drawPipelineGroup(pipelines, histories) {
+    var selectColumns = function(numPipelines) {
+        var cols = window.location.search
+            .substring(1)
+            .split('&')
+            .map(function(x) { return x.split('=') })
+            .filter(function(x) { return x[0] == 'cols' })
+            .map(function(x) { return parseInt(x[1]) })
+            .pop();
+
+        if (!isNaN(cols) && (cols > 0)) {
+            return cols;
+        };
+
+        return Math.ceil(numPipelines / 6);
+    };
+
+    var selectColor = function(result) {
+        switch (result) {
+            case "Failed":
+                return "red";
+            case "Passed":
+                return "green";
+            default:
+                return "orange";
+        };
+    };
+
     var canvas = document.getElementById("pipelines"),
-        context = canvas.getContext("2d"),
-        cols = Math.ceil(pipelines.length / 6),
-        rows = Math.ceil(pipelines.length / cols);
+        context = canvas.getContext("2d");
 
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    var w = canvas.width / cols,
+    var cols = selectColumns(pipelines.length),
+        rows = Math.ceil(pipelines.length / cols),
+        w = canvas.width / cols,
         h = canvas.height / rows,
         k = 0;
 
@@ -59,23 +86,9 @@ function drawPipelineGroup(pipelines, histories) {
             };
 
             context.fillStyle = "darkgray";
-
-            var history = histories[pipelines[k]];
-            if (history !== undefined) {
-                if (history.length > 0) {
-                    switch (history[0].Result) {
-                        case "Unknown":
-                            context.fillStyle = "orange";
-                            break;
-                        case "Failed":
-                            context.fillStyle = "red";
-                            break;
-                        case "Passed":
-                            context.fillStyle = "green";
-                            break;
-                    }
-                }
-            }
+            if (histories[pipelines[k]] !== undefined) {
+                context.fillStyle = selectColor(histories[pipelines[k]][0].Result);
+            };
 
             context.fillRect(i * w, j * h, (i * w) + w, (j * h) + h);
             context.strokeStyle = "black";
