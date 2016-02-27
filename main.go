@@ -34,9 +34,8 @@ func main() {
 
 	goCD := newGoCD(cf)
 
-	s := http.NewServeMux()
-	s.Handle("/api/", newAPIHandler(goCD))
-	s.Handle("/", newAssetsHandler())
+	http.Handle("/api/", newAPIHandler(goCD))
+	http.Handle("/", newAssetsHandler())
 
-	log.Fatal(http.ListenAndServe(*listen, s))
+	log.Fatal(http.ListenAndServe(*listen, nil))
 }
