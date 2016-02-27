@@ -89,7 +89,7 @@ func TestFakeFetcher(t *testing.T) {
 }
 
 func TestCacheFetcherCaches(t *testing.T) {
-	f, _ := newCacheFetcher(newFakeFetcher(), 1*time.Second, 1*time.Second)
+	f, _ := newCacheFetcher(newFakeFetcher(), 1*time.Second, 1*time.Second, 1)
 
 	for i := 1; i < 10; i++ {
 		v, _ := f.fetch("key2")
@@ -100,7 +100,7 @@ func TestCacheFetcherCaches(t *testing.T) {
 }
 
 func TestCacheFetcherExpires(t *testing.T) {
-	f, _ := newCacheFetcher(newFakeFetcher(), 0*time.Second, 1*time.Second)
+	f, _ := newCacheFetcher(newFakeFetcher(), 0*time.Second, 1*time.Second, 2)
 
 	for i := 1; i < 10; i++ {
 		v, _ := f.fetch("key3")
@@ -111,7 +111,7 @@ func TestCacheFetcherExpires(t *testing.T) {
 }
 
 func TestCacheFetcherPropagatesError(t *testing.T) {
-	f, _ := newCacheFetcher(newFakeFetcher(), 1*time.Second, 1*time.Second)
+	f, _ := newCacheFetcher(newFakeFetcher(), 1*time.Second, 1*time.Second, 3)
 
 	if _, err := f.fetch("fail"); err == nil {
 		t.Fatalf("Expected fetching fail to fail")
