@@ -5,6 +5,6 @@
 package main
 var (
 define(`bt', changequote([,])[changequote([,])`changequote(`,')]changequote(`,'))
-assetIndexHTML = []byte(bt()include(_assets/index.html)bt())
-assetScriptJS = []byte(bt()include(_assets/script.js)bt())
+assetIndexHTML = []byte(bt()undivert(_assets/index.html)bt())
+assetScriptJS = []byte(bt()undivert(_assets/script.js)bt())
 )

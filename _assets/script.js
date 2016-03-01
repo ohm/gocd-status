@@ -6,6 +6,83 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
+var Layout = function(canvas) {
+    this.canvas = canvas;
+    this.context = canvas.getContext("2d");
+};
+
+Layout.prototype.Init = function() {
+    this.canvas.width = window.innerWidth;
+    this.canvas.height = window.innerHeight;
+};
+
+Layout.prototype.Draw = function(pipelines) {
+    var cols = getQueryParam("cols", Math.ceil(pipelines.length / 6)),
+        rows = Math.ceil(pipelines.length / cols),
+        w = this.canvas.width / cols,
+        h = this.canvas.height / rows,
+        k = 0,
+        x = 0,
+        y = 0;
+
+    for (var i = 0; i < cols; i++) {
+        for (var j = 0; j < rows; j++) {
+            k = (i * rows) + j;
+            x = i * w;
+            y = j * h;
+
+            this.Prepare(x, y, w, h);
+
+            if (k < pipelines.length) {
+                this.Pipeline(x, y, w, h, pipelines[k]);
+            }
+        }
+    }
+};
+
+Layout.prototype.Prepare = function(x, y, w, h) {
+    this.context.fillStyle = "black";
+    this.context.fillRect(x, y, x + w, y + h);
+};
+
+Layout.prototype.Pipeline = function(x, y, w, h, pipeline) {
+    var colors = pipeline.Histories.map(function(h) {
+        switch(h.Result) {
+            case "Failed":
+                return "red";
+            case "Passed":
+                return "green";
+            case "Unknown":
+                // TODO: Building?
+                return "orange";
+            default:
+                return "darkgray";
+        }
+    });
+
+    this.context.fillStyle = colors.shift() || "darkgray";
+    this.context.fillRect(x, y, x + w, y + h);
+
+    this.context.strokeStyle = "black";
+    this.context.strokeRect(x, y, x + w, y + h);
+
+    this.context.font = "24px sans-serif";
+    this.context.fillStyle = "white";
+    this.context.fillText(pipeline.Name, x + 8, y + 24);
+};
+
+function getQueryParam(key, value) {
+    var val = window.location.search
+        .substring(1)
+        .split('&')
+        .map(function(x) { return x.split("=") })
+        .filter(function(x) { return x[0] == key })
+        .map(function(x) { return parseInt(x[1]) })
+        .pop();
+
+    return isNaN(val) ? value : val;
+};
+
 function getJSON(url, success) {
     var request = new XMLHttpRequest();
 
@@ -36,82 +113,21 @@ function updatePipelineGroups(done) {
 };
 
 function drawPipelineGroup(pipelines, histories) {
-    var selectColumns = function(numPipelines) {
-        var cols = window.location.search
-            .substring(1)
-            .split('&')
-            .map(function(x) { return x.split('=') })
-            .filter(function(x) { return x[0] == 'cols' })
-            .map(function(x) { return parseInt(x[1]) })
-            .pop();
+    var l = new Layout(document.getElementById("pipelines"));
 
-        if (!isNaN(cols) && (cols > 0)) {
-            return cols;
-        };
-
-        return Math.ceil(numPipelines / 6);
-    };
-
-    var selectColor = function(result) {
-        switch (result) {
-            case "Failed":
-                return "red";
-            case "Passed":
-                return "green";
-            default:
-                return "orange";
-        };
-    };
-
-    var canvas = document.getElementById("pipelines"),
-        context = canvas.getContext("2d");
-
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-
-    var cols = selectColumns(pipelines.length),
-        rows = Math.ceil(pipelines.length / cols),
-        w = canvas.width / cols,
-        h = canvas.height / rows,
-        k = 0;
-
-    for (var i = 0; i < cols; i++) {
-        for (var j = 0; j < rows; j++) {
-            k = (i * rows) + j;
-
-            if (k >= pipelines.length) {
-                context.fillStyle = "black";
-                context.fillRect(i * w, j * h, (i * w) + w, (j * h) + h);
-                continue;
-            };
-
-            context.fillStyle = "darkgray";
-            if (histories[pipelines[k]] !== undefined) {
-                context.fillStyle = selectColor(histories[pipelines[k]][0].Result);
-            };
-
-            context.fillRect(i * w, j * h, (i * w) + w, (j * h) + h);
-            context.strokeStyle = "black";
-            context.strokeRect(i * w, j * h, (i * w) + w, (j * h) + h);
-
-            context.font = "24px sans-serif";
-            context.fillStyle = "white";
-            context.fillText(pipelines[k], (i * w) + 8, (j * h) + 24);
-        }
-    }
+    l.Init();
+    l.Draw(pipelines, histories);
 };
 
 function updatePipelineGroup(name, done) {
     getJSON("/api/pipeline_groups.json", function(groups) {
-        var group = groups.find(function(e) {
-                return e.Name == name;
-            }),
+        var group = groups.find(function(e) { return e.Name == name }),
             histories = {};
 
         if (group === undefined) {
             console.log("Group " + name + " doesn't exist");
             done();
-        };
+        }
 
         if (group.Pipelines.length == 0) {
             console.log("Group " + name + " doesn't have any pipelines");
@@ -125,7 +141,12 @@ function updatePipelineGroup(name, done) {
                 queued--;
 
                 if (queued <= 0) {
-                    drawPipelineGroup(group.Pipelines, histories);
+                    drawPipelineGroup(group.Pipelines.map(function(name) {
+                        return {
+                          "Name": name,
+                          "Histories": histories[name] || []
+                        };
+                    }));
                     done();
                 };
             };
@@ -142,9 +163,7 @@ function updatePipelineGroup(name, done) {
 
 function update(delay) {
     updateFn(function() {
-        setTimeout(function() {
-            update(delay);
-        }, delay);
+        setTimeout(function() { update(delay) }, delay);
     });
 };
 
@@ -152,9 +171,7 @@ var updateFn = updatePipelineGroups,
     group = decodeURI(window.location.pathname).split("/").pop();
 
 if (group.length > 0) {
-    updateFn = function(done) {
-        updatePipelineGroup(group, done);
-    };
+    updateFn = function(done) { updatePipelineGroup(group, done) };
 }
 
-update(5000);
+update(getQueryParam("refresh", 5000));
