@@ -9,9 +9,16 @@ import (
 	"fmt"
 )
 
+type pipelineJob struct {
+	Name   string
+	Result string
+	State  string
+}
+
 type pipelineStage struct {
 	Name   string
 	Result string
+	Jobs   []pipelineJob
 }
 
 type pipeline struct {

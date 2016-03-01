@@ -108,9 +108,16 @@ func writePipelineGroups(gs []pipelineGroup, w io.Writer) error {
 	return json.NewEncoder(w).Encode(ags)
 }
 
+type apiJob struct {
+	Name   string
+	Result string
+	State  string
+}
+
 type apiStage struct {
 	Name   string
 	Result string
+	Jobs   []apiJob
 }
 
 type apiPipeline struct {
@@ -130,9 +137,20 @@ func writePipelineHistory(h *pipelineHistory, w io.Writer) error {
 		}
 
 		for _, s := range p.Stages {
+			js := []apiJob{}
+
+			for _, j := range s.Jobs {
+				js = append(js, apiJob{
+					Name:   j.Name,
+					Result: j.Result,
+					State:  j.State,
+				})
+			}
+
 			ap.Stages = append(ap.Stages, apiStage{
 				Name:   s.Name,
 				Result: s.Result,
+				Jobs:   js,
 			})
 		}
 

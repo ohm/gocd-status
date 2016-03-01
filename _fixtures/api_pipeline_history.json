@@ -1,1 +1,1 @@
-[{"Counter":11,"Result":"Failed","Stages":[{"Name":"stage1","Result":"Failed"}]},{"Counter":10,"Result":"Passed","Stages":[{"Name":"stage1","Result":"Passed"}]}]
+[{"Counter":11,"Result":"Failed","Stages":[{"Name":"stage1","Result":"Failed","Jobs":[{"Name":"job1","Result":"Failed","State":"Completed"}]}]},{"Counter":10,"Result":"Passed","Stages":[{"Name":"stage1","Result":"Passed","Jobs":[{"Name":"job1","Result":"Passed","State":"Completed"}]}]}]
